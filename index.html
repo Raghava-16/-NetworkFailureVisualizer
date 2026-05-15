@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Network Failure Visualizer</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;600&family=Cinzel:wght@700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: #0f172a;
+    color: #e5e7eb;
+}
+
+/* HEADER */
+.royal-header {
+    text-align: center;
+    padding: 35px;
+    border-bottom: 1px solid #1e293b;
+    background: linear-gradient(to right, #020617, #111827);
+}
+
+.title-main {
+    font-family: 'Cinzel', serif;
+    font-size: 40px;
+}
+
+.targaryen {
+    color: #dc2626;
+}
+
+/* LAYOUT */
+.container {
+    display: grid;
+    grid-template-columns: 240px 1fr 380px;
+    height: calc(100vh - 120px);
+}
+
+/* SIDEBAR */
+.sidebar {
+    padding: 20px;
+    border-right: 1px solid #1e293b;
+}
+
+button {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0;
+    border-radius: 6px;
+    border: 1px solid #334155;
+    background: #1e293b;
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    border-color: #dc2626;
+    background: #273449;
+}
+
+/* NETWORK */
+.canvas {
+    display: flex;
+    justify-content: space-evenly;
+    align-items: center;
+}
+
+.line {
+    position: relative;
+    width: 320px;
+    margin-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.line::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 40px;
+    right: 40px;
+    height: 2px;
+    background: #334155;
+    transform: translateY(-50%);
+}
+
+/* NODES */
+.node {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: #22c55e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+
+/* 🔴 DARK RED ROUTER (CONGESTION) */
+.router-danger {
+    background: #7f1d1d !important;
+    box-shadow: 
+        0 0 10px rgba(220,38,38,0.8),
+        inset 0 0 10px rgba(0,0,0,0.6);
+    border: 2px solid #dc2626;
+}
+
+/* PACKETS */
+.packet-container {
+    position: absolute;
+    top: 50%;
+    left: 40px;
+    right: 40px;
+}
+
+.packet-dot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    top: -4px;
+    animation: movePacket linear infinite;
+}
+
+@keyframes movePacket {
+    0% { left: 0%; }
+    100% { left: 100%; }
+}
+
+/* PACKET DROP */
+.packet-drop {
+    animation: drop 0.6s forwards;
+    background: red;
+}
+
+@keyframes drop {
+    100% { transform: translateY(20px); opacity: 0; }
+}
+
+/* ANIMATIONS */
+.latency-effect { animation: pulse 0.6s; }
+@keyframes pulse { 50% { transform: scale(1.1); } }
+
+.congestion-effect {
+    animation: shake 0.5s;
+}
+@keyframes shake {
+    25% { transform: translateX(-3px); }
+    50% { transform: translateX(3px); }
+}
+
+/* METRICS */
+.metrics {
+    padding: 20px;
+    border-left: 1px solid #1e293b;
+}
+
+.card {
+    background: #1e293b;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+}
+
+canvas {
+    width: 100% !important;
+    height: 260px !important;
+}
+</style>
+</head>
+
+<body>
+
+<header class="royal-header">
+<h1 class="title-main">⚔️ NETWORK FAILURE VISUALIZER</h1>
+<div>by <span class="targaryen">TARGARYENS</span> 🐉</div>
+</header>
+
+<div class="container">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+<h4>Network A</h4>
+<button onclick="addLatencyA()">Add Latency</button>
+<button onclick="addCongestionA()">Add Congestion</button>
+
+<h4>Network B</h4>
+<button onclick="addLatencyB()">Add Latency</button>
+<button onclick="addCongestionB()">Add Congestion</button>
+
+<h4>Actions</h4>
+<button onclick="compareNetworks()">Compare</button>
+<button onclick="resetAll()">Reset</button>
+</div>
+
+<!-- NETWORK -->
+<div class="canvas">
+
+<div>
+<h3>Network A</h3>
+<div class="line">
+<div class="node">Client</div>
+<div class="node" id="routerA">Router</div>
+<div class="node">Server</div>
+<div class="packet-container" id="packetA"></div>
+</div>
+</div>
+
+<div>
+<h3>Network B</h3>
+<div class="line">
+<div class="node">Client</div>
+<div class="node" id="routerB">Router</div>
+<div class="node">Server</div>
+<div class="packet-container" id="packetB"></div>
+</div>
+</div>
+
+</div>
+
+<!-- METRICS -->
+<div class="metrics">
+
+<div class="card">
+<h3>Network A</h3>
+Latency: <span id="latencyA">10</span><br>
+Loss: <span id="lossA">0</span>%<br>
+Throughput: <span id="throughputA">100</span>
+</div>
+
+<div class="card">
+<h3>Network B</h3>
+Latency: <span id="latencyB">10</span><br>
+Loss: <span id="lossB">0</span>%<br>
+Throughput: <span id="throughputB">100</span>
+</div>
+
+<div class="card">
+<h3>Comparison</h3>
+<div id="result">Click Compare</div>
+</div>
+
+<canvas id="chart"></canvas>
+
+</div>
+
+</div>
+
+<script>
+let netA={latency:10,loss:0};
+let netB={latency:10,loss:0};
+
+function updateUI(){
+latencyA.innerText=netA.latency;
+lossA.innerText=netA.loss;
+latencyB.innerText=netB.latency;
+lossB.innerText=netB.loss;
+}
+
+/* PACKETS */
+function generatePackets(container, net){
+setInterval(()=>{
+let p=document.createElement("div");
+p.className="packet-dot";
+
+/* SPEED */
+let speed=Math.max(2,10-net.latency/20);
+p.style.animationDuration=speed+"s";
+
+container.appendChild(p);
+
+/* DROP */
+if(Math.random()<net.loss/100){
+setTimeout(()=>p.classList.add("packet-drop"),500);
+}
+
+/* REMOVE */
+setTimeout(()=>p.remove(),8000);
+
+},800);
+}
+
+generatePackets(packetA, netA);
+generatePackets(packetB, netB);
+
+/* ACTIONS */
+function addLatencyA(){
+netA.latency+=20;
+routerA.classList.add("latency-effect");
+setTimeout(()=>routerA.classList.remove("latency-effect"),600);
+updateUI(); updateChart();
+}
+
+function addCongestionA(){
+netA.loss+=20;
+routerA.classList.add("router-danger","congestion-effect");
+setTimeout(()=>routerA.classList.remove("congestion-effect"),500);
+updateUI(); updateChart();
+}
+
+function addLatencyB(){
+netB.latency+=20;
+routerB.classList.add("latency-effect");
+setTimeout(()=>routerB.classList.remove("latency-effect"),600);
+updateUI(); updateChart();
+}
+
+function addCongestionB(){
+netB.loss+=20;
+routerB.classList.add("router-danger","congestion-effect");
+setTimeout(()=>routerB.classList.remove("congestion-effect"),500);
+updateUI(); updateChart();
+}
+
+/* COMPARE */
+function compareNetworks(){
+let a=netA.latency+netA.loss;
+let b=netB.latency+netB.loss;
+result.innerText = a<b ? "Network A better" : b<a ? "Network B better" : "Equal";
+}
+
+/* RESET */
+function resetAll(){
+netA={latency:10,loss:0};
+netB={latency:10,loss:0};
+
+packetA.innerHTML="";
+packetB.innerHTML="";
+
+routerA.classList.remove("router-danger");
+routerB.classList.remove("router-danger");
+
+updateUI();
+}
+
+/* GRAPH */
+let chart=new Chart(document.getElementById('chart'),{
+type:'line',
+data:{
+labels:[],
+datasets:[
+{label:'Network A Loss',data:[],borderColor:'orange'},
+{label:'Network B Loss',data:[],borderColor:'cyan'}
+]
+}
+});
+
+function updateChart(){
+chart.data.labels.push(chart.data.labels.length+1);
+chart.data.datasets[0].data.push(netA.loss);
+chart.data.datasets[1].data.push(netB.loss);
+chart.update();
+}
+
+updateUI();
+</script>
+
+</body>
+</html>
